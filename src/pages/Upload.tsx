@@ -234,7 +234,7 @@ const UploadPage = () => {
       formData.append("prompt", selected.prompt);
       formData.append("options", JSON.stringify({ expert: selected.expert }));
 
-      const response = await fetch("http://localhost:5000/api/gemini/generate", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gemini/generate`, {
         method: "POST",
         body: formData,
       });
@@ -716,14 +716,6 @@ const UploadPage = () => {
                             ul: ({node, ...props}) => <ul className="list-disc pl-6 mb-4 space-y-1" {...props} />,
                             ol: ({node, ...props}) => <ol className="list-decimal pl-6 mb-4 space-y-1" {...props} />,
                             li: ({node, ...props}) => <li className="mb-1" {...props} />,
-                            code: ({node, inline, ...props}) => 
-                              inline ? (
-                                <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props} />
-                              ) : (
-                                <pre className="bg-muted p-4 rounded-md overflow-x-auto my-4">
-                                  <code className="text-sm" {...props} />
-                                </pre>
-                              ),
                             a: ({node, ...props}) => (
                               <a className="text-primary hover:underline underline-offset-4" target="_blank" rel="noopener noreferrer" {...props} />
                             ),
