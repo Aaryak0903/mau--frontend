@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, Upload } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Header = () => {
   return (
@@ -33,10 +34,17 @@ const Header = () => {
             <Badge className="hidden sm:flex bg-primary/10 text-primary">
               Beta Access
             </Badge>
-            <Button size="sm" className="bg-gradient-primary hover:opacity-90">
-              <Upload className="mr-2 h-4 w-4" />
-              Try Free
-            </Button>
+            <Link to="/auth">
+              <Button variant="outline" size="sm">
+                Login
+              </Button>
+            </Link>
+            <Link to="/upload">
+              <Button size="sm" className="bg-gradient-primary hover:opacity-90">
+                <Upload className="mr-2 h-4 w-4" />
+                Try Free
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
