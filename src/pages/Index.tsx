@@ -73,7 +73,7 @@ const Index = () => {
           
           <div className="mt-12 pt-8 border-t border-background/20 text-center">
             <p className="text-background/60 text-sm">
-              © 2024 BhashaGuru AI - Abhyas Studio. All rights reserved.
+              Made with love for my love
             </p>
           </div>
         </div>
