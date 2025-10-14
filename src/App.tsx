@@ -9,7 +9,7 @@ import Auth from "./pages/Auth";
 import Upload from "./pages/Upload";
 
 const queryClient = new QueryClient();
-
+//load env variables
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
