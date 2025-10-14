@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { Loader2, Upload, FileText, LogOut, CheckCircle2, XCircle, ArrowLeft, ArrowRight } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
+import PronunciationHandler from "@/components/PronunciationHandler";
 import type { User } from "@supabase/supabase-js";
 
 // Types for our quiz
@@ -52,6 +53,64 @@ const UploadPage = () => {
   const [file, setFile] = useState<File | null>(null);
   const [contentType, setContentType] = useState("");
   const [result, setResult] = useState("");
+  const [pronounceEnabled, setPronounceEnabled] = useState(false);
+  const [bucketFiles, setBucketFiles] = useState<{ path: string; name: string }[]>([]);
+  const [bucketLoading, setBucketLoading] = useState(false);
+  const [selectedBucketFile, setSelectedBucketFile] = useState<string | null>(null);
+  const [downloadingBucketFile, setDownloadingBucketFile] = useState(false);
+  const [uploadMode, setUploadMode] = useState<"standard" | "custom">("standard");
+  const [selectedLesson, setSelectedLesson] = useState("1");
+  const lessonOptions = useMemo(() => {
+    const difficultyForLesson = (lessonNumber: number) => {
+      if (lessonNumber <= 3) return "Beginner";
+      if (lessonNumber <= 7) return "Intermediate";
+      return "Advanced";
+    };
+
+    return Array.from({ length: 10 }, (_, index) => {
+      const lessonNumber = index + 1;
+      const prefix = `std${lessonNumber}`;
+      const filesForLesson = bucketFiles.filter((file) => {
+        const normalised = file.path.toLowerCase();
+        return normalised.startsWith(prefix);
+      });
+      return {
+        value: `${lessonNumber}`,
+        label: `Lesson ${lessonNumber}`,
+        difficulty: difficultyForLesson(lessonNumber),
+        files: filesForLesson,
+      };
+    });
+  }, [bucketFiles]);
+
+  const selectedLessonOption = useMemo(
+    () => lessonOptions.find((option) => option.value === selectedLesson),
+    [lessonOptions, selectedLesson]
+  );
+
+  const lessonFiles = selectedLessonOption?.files ?? [];
+  useEffect(() => {
+    if (uploadMode === "standard" && selectedBucketFile && !lessonFiles.some((item) => item.path === selectedBucketFile)) {
+      setSelectedBucketFile(null);
+      setFile(null);
+    }
+  }, [uploadMode, lessonFiles, selectedBucketFile]);
+  const handleModeChange = useCallback((mode: "standard" | "custom") => {
+    setUploadMode(mode);
+    setFile(null);
+    if (mode === "custom") {
+      setSelectedBucketFile(null);
+    }
+  }, []);
+  const handleLessonSelect = useCallback((lessonValue: string) => {
+    setSelectedLesson(lessonValue);
+    setSelectedBucketFile(null);
+    setFile(null);
+  }, []);
+  const isSubmitDisabled =
+    loading ||
+    downloadingBucketFile ||
+    (uploadMode === "custom" ? !file : !selectedBucketFile);
   const [quizState, setQuizState] = useState<QuizState>({
     quiz: null,
     currentQuestionIndex: 0,
@@ -85,6 +144,63 @@ const UploadPage = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  const loadBucketFiles = useCallback(async () => {
+    setBucketLoading(true);
+    console.log("[Supabase] Loading notes bucket files");
+    try {
+      const files: { path: string; name: string }[] = [];
+      const traverse = async (prefix: string) => {
+        const { data, error } = await supabase.storage.from("notes").list(prefix, {
+          limit: 1000,
+          offset: 0,
+          sortBy: { column: "name", order: "asc" },
+        });
+        if (error) throw error;
+        console.log("[Supabase] List result", { prefix, data });
+        for (const item of data ?? []) {
+          const itemPath = prefix ? `${prefix}/${item.name}` : item.name;
+          if (!itemPath) continue;
+          const hasMetadata = item.metadata && typeof (item.metadata as { size?: number }).size !== "undefined";
+          const looksLikeFile = item.name?.includes(".");
+          if (hasMetadata || looksLikeFile) {
+            files.push({ path: itemPath, name: item.name });
+          } else {
+            await traverse(itemPath);
+          }
+        }
+      };
+      await traverse("");
+      const fallbackFiles = [
+        "std1.docx",
+        "std2.docx",
+        "std3.docx",
+        "std4.docx",
+        "std5.docx",
+        "std6.docx",
+        "std7.docx",
+        "std8.docx",
+        "std9.docx",
+        "std10.docx",
+      ].map((name) => ({ path: name, name }));
+      const merged = new Map<string, { path: string; name: string }>();
+      for (const entry of [...files, ...fallbackFiles]) {
+        merged.set(entry.path, entry);
+      }
+      const sorted = Array.from(merged.values()).sort((a, b) => a.path.localeCompare(b.path));
+      setBucketFiles(sorted);
+      console.log("[Supabase] Final bucket file list", sorted);
+    } catch (error: any) {
+      console.error("[Supabase] Failed to load notes", error);
+      toast({ title: "Error", description: error.message || "Could not load notes files", variant: "destructive" });
+    } finally {
+      setBucketLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    loadBucketFiles();
+  }, [loadBucketFiles]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -152,10 +268,55 @@ const UploadPage = () => {
     }
   };
 
+  const guessMimeType = (fileName: string) => {
+    const extension = fileName.split(".").pop()?.toLowerCase();
+    if (!extension) {
+      return "application/octet-stream";
+    }
+    if (extension === "pdf") return "application/pdf";
+    if (extension === "txt") return "text/plain";
+    if (extension === "doc") return "application/msword";
+    if (extension === "docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (extension === "json") return "application/json";
+    return "application/octet-stream";
+  };
+
+  const handleStoredFileSelect = async (value: string) => {
+    console.log("[Supabase] Saved note selection", value);
+    if (!value) {
+      setSelectedBucketFile(null);
+      setFile(null);
+      return;
+    }
+    setSelectedBucketFile(value);
+    setDownloadingBucketFile(true);
+    try {
+      const { data: blob, error } = await supabase.storage.from("notes").download(value);
+      if (error || !blob) {
+        throw new Error(error?.message || "Failed to download file from notes bucket");
+      }
+      const mimeType = blob.type || guessMimeType(value);
+      const fileName = value.split("/").pop() || value;
+      const downloadedFile = new File([blob], fileName, { type: mimeType });
+      setFile(downloadedFile);
+      console.log("[Supabase] File loaded from notes", { fileName, mimeType, size: downloadedFile.size });
+      toast({ title: "File selected", description: `${fileName} loaded from notes bucket` });
+    } catch (error: any) {
+      console.error("[Supabase] Failed to load saved note", error);
+      toast({ title: "Error", description: error.message || "Could not download file", variant: "destructive" });
+      setFile(null);
+    } finally {
+      setDownloadingBucketFile(false);
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
+      setSelectedBucketFile(null);
+      setUploadMode("custom");
+      console.log("[Upload] Manual file selected", { name: selectedFile.name, type: selectedFile.type, size: selectedFile.size });
     }
   };
 
@@ -170,7 +331,8 @@ const UploadPage = () => {
       return;
     }
 
-    // If it's a quiz file, handle it directly
+    console.log("[Upload] Submitting file", { name: file.name, type: file.type, size: file.size, contentType });
+
     if (file.type === 'application/json' || file.name.endsWith('.json')) {
       try {
         const fileContent = await file.text();
@@ -611,17 +773,98 @@ const UploadPage = () => {
               <CardContent>
                 <form onSubmit={handleFileUpload} className="space-y-6">
                   <div className="grid w-full max-w-sm items-center gap-1.5">
-                    <Label htmlFor="document">Document</Label>
-                    <Input 
-                      id="document" 
-                      type="file" 
-                      onChange={handleFileChange}
-                      accept=".pdf,.txt,.doc,.docx,.json"
-                    />
+                    <Label>Workflow</Label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant={uploadMode === "standard" ? "default" : "outline"}
+                        onClick={() => handleModeChange("standard")}
+                      >
+                        Standard Lessons
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={uploadMode === "custom" ? "default" : "outline"}
+                        onClick={() => handleModeChange("custom")}
+                      >
+                        Custom Upload
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Supported formats: PDF, TXT, DOC, DOCX, JSON
+                      Pick a curated lesson or bring your own material.
                     </p>
                   </div>
+
+                  {uploadMode === "standard" ? (
+                    <div className="space-y-4">
+                      <div className="grid w-full max-w-sm items-center gap-1.5">
+                        <Label htmlFor="lesson-select">Lesson</Label>
+                        <Select value={selectedLesson} onValueChange={handleLessonSelect}>
+                          <SelectTrigger id="lesson-select">
+                            <SelectValue placeholder="Choose lesson" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {lessonOptions.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label} • {option.difficulty}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label>Saved Notes</Label>
+                          {selectedLessonOption && (
+                            <span className="text-xs text-muted-foreground">
+                              {selectedLessonOption.difficulty} difficulty
+                            </span>
+                          )}
+                        </div>
+                        {bucketLoading ? (
+                          <div className="text-sm text-muted-foreground">Loading notes...</div>
+                        ) : lessonFiles.length === 0 ? (
+                          <div className="text-sm text-muted-foreground">No saved notes for this lesson yet.</div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {lessonFiles.map((item) => {
+                              const isSelected = selectedBucketFile === item.path;
+                              return (
+                                <Button
+                                  key={item.path}
+                                  type="button"
+                                  variant={isSelected ? "default" : "outline"}
+                                  className="justify-start"
+                                  onClick={() => handleStoredFileSelect(item.path)}
+                                  disabled={downloadingBucketFile && !isSelected}
+                                >
+                                  <FileText className="h-4 w-4 mr-2" />
+                                  {item.path}
+                                </Button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {downloadingBucketFile && (
+                          <p className="text-xs text-muted-foreground">Fetching file...</p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid w-full max-w-sm items-center gap-1.5">
+                      <Label htmlFor="document">Upload document</Label>
+                      <Input
+                        id="document"
+                        type="file"
+                        onChange={handleFileChange}
+                        accept=".pdf,.txt,.doc,.docx,.json"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Supported formats: PDF, TXT, DOC, DOCX, JSON
+                      </p>
+                    </div>
+                  )}
                   <div className="grid w-full max-w-sm items-center gap-1.5">
                     <Label htmlFor="content-type">Content Type</Label>
                     <Select onValueChange={setContentType} value={contentType}>
@@ -636,7 +879,7 @@ const UploadPage = () => {
                     </Select>
                   </div>
                   <div className="pt-2">
-                    <Button type="submit" disabled={loading}>
+                    <Button type="submit" disabled={isSubmitDisabled}>
                       {loading ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -696,11 +939,26 @@ const UploadPage = () => {
               renderQuiz()
             ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle>Generated Content</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between gap-4">
+                  <div>
+                    <CardTitle>Generated Content</CardTitle>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={pronounceEnabled ? "default" : "outline"}
+                    onClick={() => setPronounceEnabled((prev) => !prev)}
+                  >
+                    {pronounceEnabled ? "Pronunciation On" : "Pronunciation Off"}
+                  </Button>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-auto max-h-[70vh] p-2">
+                  <div
+                    className={`overflow-auto max-h-[70vh] p-2 rounded-lg ${
+                      pronounceEnabled ? "ring-2 ring-primary/80 bg-primary/5" : ""
+                    }`}
+                    data-pronounce-container="true"
+                    id="generated-content-area"
+                  >
                     {contentType === 'pariksha' ? (
                       <pre className="text-sm bg-muted p-4 rounded-md overflow-x-auto">
                         {result || 'No content yet. Upload a document to generate content.'}
@@ -745,9 +1003,10 @@ const UploadPage = () => {
             )}
           </div>
         </div>
+        <PronunciationHandler enabled={pronounceEnabled} targetSelector="#generated-content-area" />
       </main>
-  </div>
-);
+    </div>
+  );
 };
 
 export default UploadPage;
