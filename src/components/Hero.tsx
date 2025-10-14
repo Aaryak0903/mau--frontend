@@ -53,7 +53,7 @@ const Hero = () => {
             <div className="relative rounded-2xl overflow-hidden shadow-feature">
               <img 
                 src={heroImage} 
-                alt="BhashaGuru AI transforming documents into interactive lessons" 
+                alt="Vernac transforming documents into interactive lessons" 
                 className="w-full h-auto"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-primary/20 via-transparent to-transparent" />

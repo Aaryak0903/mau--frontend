@@ -13,7 +13,7 @@ const Header = () => {
               <BookOpen className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <div className="font-bold text-xl text-foreground">BhashaGuru AI</div>
+              <div className="font-bold text-xl text-foreground">Vernac</div>
               <div className="text-xs text-muted-foreground font-medium">Abhyas Studio</div>
             </div>
           </div>

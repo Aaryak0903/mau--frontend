@@ -108,7 +108,7 @@ const Auth = () => {
               </div>
             </div>
             <div>
-              <div className="font-bold text-xl">BhashaGuru AI</div>
+              <div className="font-bold text-xl">Vernac</div>
               <div className="text-sm text-muted-foreground">Abhyas Studio</div>
             </div>
           </div>
@@ -172,7 +172,7 @@ const Auth = () => {
                 <CardHeader>
                   <CardTitle>Create Account</CardTitle>
                   <CardDescription>
-                    Join BhashaGuru AI to start your learning journey
+                    Join Vernac to start your learning journey
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

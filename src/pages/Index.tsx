@@ -34,7 +34,7 @@ const Index = () => {
                   </div>
                 </div>
                 <div>
-                  <div className="font-bold text-lg">BhashaGuru AI</div>
+                  <div className="font-bold text-lg">Vernac</div>
                   <div className="text-xs text-background/70">Abhyas Studio</div>
                 </div>
               </div>

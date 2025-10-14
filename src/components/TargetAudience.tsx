@@ -55,7 +55,7 @@ const TargetAudience = () => {
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
             Whether you're advancing your career, connecting with heritage, or exploring new cultures, 
-            BhashaGuru AI adapts to your unique learning needs.
+            Vernac adapts to your unique learning needs.
           </p>
         </div>
 

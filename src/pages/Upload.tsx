@@ -234,7 +234,7 @@ const UploadPage = () => {
       formData.append("prompt", selected.prompt);
       formData.append("options", JSON.stringify({ expert: selected.expert }));
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/gemini/generate`, {
+      const response = await fetch("http://localhost:5000/api/gemini/generate", {
         method: "POST",
         body: formData,
       });
@@ -581,7 +581,7 @@ const UploadPage = () => {
               </div>
             </div>
             <div>
-              <div className="font-bold text-lg">BhashaGuru AI</div>
+              <div className="font-bold text-lg">Vernac</div>
               <div className="text-xs text-muted-foreground">AI Document Processor</div>
             </div>
           </div>
